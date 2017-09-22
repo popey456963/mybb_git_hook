@@ -55,7 +55,7 @@ app.post('/', function (req, res) {
       }
 
       for (let modified of commit.modified) {
-        changed.push(check(added))
+        changed.push(check(modified))
       }
     }
     changed.filter((item) => !!item)
