@@ -61,6 +61,10 @@ app.post('/', function (req, res) {
     changed.filter((item) => !!item)
 
     update_array(changed)
+
+    res.json(changed)
+  } else {
+    res.json("Wrong Repo")
   }
 })
 
