@@ -1,10 +1,22 @@
 const express = require('express')
 const body_parser = require('body-parser')
+const github_api = require('github')
 const fs = require('fs')
 const btoa = require('btoa')
+const atob = require('atob')
 const app = express()
+const github = new github_api({
+  'user-agent': 'MyBB Syncer by Popey456963'
+})
 
 require('dotenv').config()
+
+github.authenticate({
+  type: 'basic',
+  username: process.env.GH_USERNAME,
+  password: process.env.GH_PASSWORD
+})
+
 
 let request = require('request-promise')
 const mybbuser = request.cookie(`mybbuser=${process.env.MYBB_USER}`)
@@ -58,30 +70,50 @@ async function update_array(changed) {
   }
 }
 
-async function update_github() {
+async function update_github(file) {
+  let path = `pages/${file}`
+  github.repos.updateFile({
+    owner: 'popey456963',
+    repo: 'mybb_git_hook',
+    path,
+    message: 'Sync ' + file,
+    content: btoa(fs.readFileSync(`../${path}`, { encoding: 'utf-8'})),
+    sha: (JSON.parse(await request({ uri: `https://api.github.com/repos/${REPO_NAME}/contents/${path}`, headers}))).sha
+  })
+}
+
+async function update_local(github) {
   for (let file of fs.readdirSync('../pages/')) {
-    console.log(file)
-    let file_name = `pages/${file}`
-    console.log(`https://api.github.com/repos/${REPO_NAME}/contents/${file_name}`)
-    request({
-      method: 'PUT',
-      uri: `https://api.github.com/repos/${REPO_NAME}/contents/${file_name}`,
-      json: true,
-      body: {
-        message: "Mirror MyBB",
-        content: btoa(fs.readFileSync('../pages/' + file, { encoding: 'utf-8'})),
-        sha: (await request({ uri: `https://api.github.com/repos/${REPO_NAME}/contents/pages/${file}`, headers})).sha
-      },
-      headers
-    })
+    let path = `pages/${file}`
+    post_id = /([0-9]+) - (.*)/.exec(file)[1]
+    let post_html = github ? await get_github_file(path) : await get_post(post_id)
+    let post_file = fs.readFileSync(`../${path}`, { encoding: 'utf-8'})
+    if (post_html != post_file) {
+      fs.writeFileSync('../pages/' + file, post_html)
+      github ? update_mybb(file) : update_github(file)
+    }
   }
 }
 
-update_github()
-
 async function get_post(post_id) {
   let html = await request(`https://clwo.eu/xmlhttp.php?action=edit_post&do=get_post&pid=${post_id}&id=pid_${post_id}`)
-  return html
+  return JSON.parse(html)
+}
+
+async function get_github_file(path) {
+  let data = await github.repos.getContent({
+    owner: 'popey456963',
+    repo: 'mybb_git_hook',
+    path
+  })
+  return atob(data.data.content)
+}
+
+async function update_mybb(file) {
+  let post_file = fs.readFileSync(`../${file}`, { encoding: 'utf-8'})
+  let file_name = file.split('/')[1].split('.')[0]
+  let result = /([0-9]+) - (.*)/.exec(file_name)
+  set_post(result[1], post_file)
 }
 
 async function set_post(post_id, content) {
@@ -91,14 +123,17 @@ async function set_post(post_id, content) {
     formData: {
       value: content,
       id: `pid_${post_id}`,
-      editreason: 'Automatic Edit'
+      editreason: 'Sync with Github'
     }
   })
 }
 
 ;(async () => {
-  console.log(await get_post('12240'))
-  set_post('12240', JSON.parse(await get_post('12240')) + ' test');
+  setInterval(() => update_local(false), 1000 * 60 * 6)
+  setTimeout(() => setInterval(() => update_local(true), 1000 * 60 * 6), 1000 * 60 * 3)
+  console.log(await get_github_file('pages/12240 - Test Post.mybb'))
+  // console.log(await get_post('12240'))
+  // set_post('12240', await get_post('12240') + ' test');
 })()
 
 app.listen(7990, function () {
