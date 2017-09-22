@@ -8,9 +8,7 @@ app.use(bodyParser.json())
 
 app.post('/', function (req, res) {
   if (req.body.repository.full_name == REPO_NAME) {
-  	if (req.body.hook.events[0] == 'push') {
-  		console.log(req.body)
-  	}
+    console.log('Deteched push...')
   }
 })
 
