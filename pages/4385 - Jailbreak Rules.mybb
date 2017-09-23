@@ -202,15 +202,21 @@ threatening examples
 
 [*]You can only re-enter armory if you had a visual on a prisoner inside the armory.
 
-[*]You cannot enter vents unless you saw a prisoner literally going in.
-
-[*]You can enter vents if you see a prisoner inside of the vents.
-
 [*]You cannot open secrets/vents if it directly helps a prisoner rebel.
 
 [*]Always kill red (even when warden pardons red) unless it's part of a minigame or LR
 
 [*]Have a prisoner in sight at all times unless you are hunting or ordered by the warden. being in the main cell area is also fine.(if a staff member finds you in a position where you don't have a prisoner in sight and you are not trying to get one in sight they will slay you). (
+
+[*] You cannot enter the vents unless you see a prisoner inside the vents, or entering the vents.
+
+[*]When only one non-rebelling prisoner is remaining, all guards are allowed to hunt and enter the vents.
+
+[*]After killing somebody in the vents, you must leave via the nearest exit without delay.
+
+[*]You must not camp vents, secrets, the armoury or any vent entrance (e.g. vent cell).
+
+[*]If you do not have permission to hunt, you must leave the vents immediately if you have not seen a prisoner in three seconds OR seen a prisoner turn the next corner.
 
 [*]Give a prisoner minimum reaction time based on the order. (You should give a prisoner roughly 3 seconds).
 
@@ -222,13 +228,7 @@ threatening examples
 
 [*]You must protect your teammates at all times.
 
-[*]Entering vents/secrets/armory is allowed if there is only 1 non-rebelling prisoner left.
-
 [*]You cannot open the cells unless ordered by your warden.
-
-[*]If you find yourself in a vent after killing a rebeller you must exit the vent without delaying. (do not go looking for more)
-
-[*]You cannot aim camp / physically camp entrances/exits of vents/secrets/armory or a vent cell.
 
 [*]You may order a specific prisoner to drop his weapon, you must call him out via voice chat and it must be a clear order.
 
