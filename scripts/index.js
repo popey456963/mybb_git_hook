@@ -4,20 +4,24 @@ const github_api = require('github')
 const fs = require('fs')
 const btoa = require('btoa')
 const atob = require('atob')
-const app = express()
-const github = new github_api({
-  'user-agent': 'MyBB Syncer by Popey456963'
-})
 
 require('dotenv').config()
 
-github.authenticate({
-  type: 'basic',
-  username: process.env.GH_USERNAME,
-  password: process.env.GH_PASSWORD
-})
+const USER_AGENT = 'MyBB Syncer (Popey456963)'
+const REPO_USER = 'popey456963'
+const REPO_NAME = 'mybb_git_hook'
+const REPO_URL = `${REPO_USER}/${REPO_NAME}`
+const PAGE_REGEX = /^pages\/([0-9]+) - (.*)\.mybb$/
 
+const headers = {
+  'User-Agent': USER_AGENT
+}
 
+// Handle Github API Login
+const github = new github_api({ 'user-agent': USER_AGENT })
+github.authenticate({ type: 'basic', username: process.env.GH_USERNAME, password: process.env.GH_PASSWORD })
+
+// Setup Request with MyBB Cookies
 let request = require('request-promise')
 const mybbuser = request.cookie(`mybbuser=${process.env.MYBB_USER}`)
 const phpsess = request.cookie(`PHPSESSID=${process.env.PHP_SESSION_ID}`)
@@ -29,115 +33,77 @@ j.setCookie(phpsess, 'https://clwo.eu')
 j.setCookie(sid, 'https://clwo.eu')
 request = request.defaults({ jar: j })
 
-let headers = {
-  'User-Agent': 'MyBB Hook, by popey456963'
-}
-
-const REPO_NAME = "popey456963/mybb_git_hook"
-
+const app = express()
 app.use(body_parser.json())
 
-function check(name) {
-  if (name.indexOf('pages/') == 0) {
-    let file_name = name.split('/')[1].split('.')[0]
-    let result = /([0-9]+) - (.*)/.exec(file_name)
-    return [result[1], result[2], name]
-  }
-  return false
-}
-
 app.post('/', function (req, res) {
-  if (req.body.repository.full_name == REPO_NAME) {
-    let changed = []
+  if (req.body.repository.full_name === REPO_URL) {
     for (let commit of req.body.commits) {
-      for (let added of commit.added) {
-        changed.push(check(added))
-      }
-
-      for (let modified of commit.modified) {
-        changed.push(check(modified))
-      }
+      commit.added
+        .concat(commit.modified)
+        .map((page) => PAGE_REGEX.exec(page))
+        .filter((page) => page)
+        .map((page) => {
+          save_github_page_to_disk(page[0], page[1])
+        })
     }
-    changed.filter((item) => !!item)
-
-    update_array(changed)
-
-    res.json(changed)
-  } else {
-    res.json("Wrong Repo")
   }
 })
 
-async function update_array(changed) {
-  for (let change of changed) {
-    set_post(change[0], await request('https://raw.githubusercontent.com/popey456963/mybb_git_hook/master/' + change[2]))
+function get_path_id(path) {
+  return PAGE_REGEX.exec(page)[1]
+}
+
+// Saves a Github page to the disk.  Will only be called when a page has been modified.
+async function save_github_page_to_disk(page, page_id) {
+  let new_content = await request(`https://raw.githubusercontent.com/${REPO_URL}/master/${page[0]}`)
+  fs.writeFileSync(page, new_content)
+  upload_disk_to_mybb(page, page_id)
+}
+
+// Saves a MyBB page to the disk and updates Github if the file has changed.
+async function save_mybb_page_to_disk(page, page_id) {
+  let new_content = JSON.parse(await request(`https://clwo.eu/xmlhttp.php?action=edit_post&do=get_post&pid=${page_id}&id=pid_${page_id}`))
+  if (new_content != fs.readFileSync(`../pages/${page}`, { encoding: 'utf-8'})) {
+    fs.writeFileSync(page, new_content)
+    upload_disk_to_github(page)
   }
 }
 
-async function update_github(file) {
-  let path = `pages/${file}`
+// Uploads a file from disk to Github, will still create a commit even if the file hasn't changed.
+async function upload_disk_to_github(page) {
+  let path = `pages/${page}`
   github.repos.updateFile({
-    owner: 'popey456963',
-    repo: 'mybb_git_hook',
+    owner: REPO_USER,
+    repo: REPO_NAME,
     path,
-    message: 'Sync ' + file,
+    message: 'Sync ' + page,
     content: btoa(fs.readFileSync(`../${path}`, { encoding: 'utf-8'})),
-    sha: (JSON.parse(await request({ uri: `https://api.github.com/repos/${REPO_NAME}/contents/${path}`, headers}))).sha
+    sha: (JSON.parse(await request({ uri: `https://api.github.com/repos/${REPO_URL}/contents/${path}`, headers}))).sha
   })
 }
 
-async function update_local(github) {
-  for (let file of fs.readdirSync('../pages/')) {
-    let path = `pages/${file}`
-    post_id = /([0-9]+) - (.*)/.exec(file)[1]
-    let post_html = github ? await get_github_file(path) : await get_post(post_id)
-    let post_file = fs.readFileSync(`../${path}`, { encoding: 'utf-8'})
-    if (post_html != post_file) {
-      fs.writeFileSync('../pages/' + file, post_html)
-      github ? update_mybb(file) : update_github(file)
-    }
-  }
-}
-
-async function get_post(post_id) {
-  let html = await request(`https://clwo.eu/xmlhttp.php?action=edit_post&do=get_post&pid=${post_id}&id=pid_${post_id}`)
-  return JSON.parse(html)
-}
-
-async function get_github_file(path) {
-  let data = await github.repos.getContent({
-    owner: 'popey456963',
-    repo: 'mybb_git_hook',
-    path
-  })
-  return atob(data.data.content)
-}
-
-async function update_mybb(file) {
-  let post_file = fs.readFileSync(`../${file}`, { encoding: 'utf-8'})
-  let file_name = file.split('/')[1].split('.')[0]
-  let result = /([0-9]+) - (.*)/.exec(file_name)
-  set_post(result[1], post_file)
-}
-
-async function set_post(post_id, content) {
-  let html = await request({
+// Uploads a file from disk to MyBB, will still edit even if the file hasn't changed.
+async function upload_disk_to_mybb(page, page_id) {
+  let content = fs.readFileSync(`../${file}`, { encoding: 'utf-8'})
+  await request({
     uri: `https://clwo.eu/xmlhttp.php?action=edit_post&do=update_post&pid=${post_id}&my_post_key=${process.env.MY_POST_KEY}`,
     method: 'POST',
     formData: {
       value: content,
-      id: `pid_${post_id}`,
+      id: `pid_${page_id}`,
       editreason: 'Sync with Github'
     }
   })
 }
 
 ;(async () => {
-  setInterval(() => update_local(false), 1000 * 60 * 6)
-  setTimeout(() => setInterval(() => update_local(true), 1000 * 60 * 6), 1000 * 60 * 3)
-  console.log(await get_github_file('pages/12240 - Test Post.mybb'))
-  // console.log(await get_post('12240'))
-  // set_post('12240', await get_post('12240') + ' test');
+  setInterval(() => {
+    for (let file of fs.readdirSync('../pages/')) {
+      let path = `pages/${file}`
+      save_mybb_page_to_disk(path, get_path_id(path))
+    }
+  }, 1000 * 60 * 5) // 5 minutes
 })()
 
 app.listen(7990, function () {
