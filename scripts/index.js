@@ -10,6 +10,7 @@ require('dotenv').config()
 const USER_AGENT = 'MyBB Syncer (Popey456963)'
 const REPO_USER = 'popey456963'
 const REPO_NAME = 'mybb_git_hook'
+const MYBB_URL = 'https://clwo.eu'
 const REPO_URL = `${REPO_USER}/${REPO_NAME}`
 const PAGE_REGEX = /^pages\/([0-9]+) - (.*)\.mybb$/
 
@@ -63,7 +64,7 @@ async function save_github_page_to_disk(page, page_id) {
 
 // Saves a MyBB page to the disk and updates Github if the file has changed.
 async function save_mybb_page_to_disk(page, page_id) {
-  let new_content = JSON.parse(await request(`https://clwo.eu/xmlhttp.php?action=edit_post&do=get_post&pid=${page_id}&id=pid_${page_id}`))
+  let new_content = JSON.parse(await request(`${MYBB_URL}/xmlhttp.php?action=edit_post&do=get_post&pid=${page_id}&id=pid_${page_id}`))
   if (new_content != fs.readFileSync(`../pages/${page}`, { encoding: 'utf-8'})) {
     fs.writeFileSync(page, new_content)
     upload_disk_to_github(page)
@@ -87,7 +88,7 @@ async function upload_disk_to_github(page) {
 async function upload_disk_to_mybb(page, page_id) {
   let content = fs.readFileSync(`../${file}`, { encoding: 'utf-8'})
   await request({
-    uri: `https://clwo.eu/xmlhttp.php?action=edit_post&do=update_post&pid=${post_id}&my_post_key=${process.env.MY_POST_KEY}`,
+    uri: `${MYBB_URL}/xmlhttp.php?action=edit_post&do=update_post&pid=${post_id}&my_post_key=${process.env.MY_POST_KEY}`,
     method: 'POST',
     formData: {
       value: content,
